@@ -29,6 +29,6 @@ onMounted(() => {
     background: #EEEEEE;
 }
 .container::v-deep .cm-line {
-    font-family: Menlo, Monaco, "Courier New", monospace;
+    font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
 }
 </style>

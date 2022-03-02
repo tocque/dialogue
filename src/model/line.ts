@@ -59,7 +59,7 @@ export class Line {
 
     protected readonly view: EditorView;
     
-    constructor(data: LineData, parent?: Line) {
+    protected constructor(data: LineData, parent?: Line) {
 
         this.id = id++;
         idMap.set(this.id, this);
@@ -115,6 +115,15 @@ export class Line {
         if (this.childPolicy.value === LineChildPolicy.FreeChild && this.children.length === 0) {
             this.appendChild(new Line({ content: "" }));
         }
+    }
+
+    /**
+     * 创建一个新行
+     * @param data 
+     * @returns 
+     */
+    static newLine(data: LineData = { content: ""}) {
+        return new Line(data);
     }
 
     focus() {
@@ -187,7 +196,7 @@ export class Line {
         const view = this.view;
         view.update([ tr ]);
         if (tr.changes.empty) return;
-
+        
         const newType = this.getContentType();
         console.log(newType, this.contentType);
         if (newType !== this.contentType) {
@@ -297,11 +306,11 @@ export class Line {
 export class RootLine extends Line {
 
     constructor(model: Model, data: LineData[] = []) {
-        super({ content: "", children: data });
+        // 由于model初始化顺序，这里只能使用hack方法来处理
+        const line = Line.newLine();
+        line.model = model;
+        super({ content: "", children: data }, line);
         this.parent = this;
-        this.model = model;
-        // 由于model初始化顺序，构造时时无法设置子节点model，因此需要重新设置
-        this.children.forEach((e) => e.linkParent(this));
     }
 
     getChildPolicy(): LineChildPolicy {

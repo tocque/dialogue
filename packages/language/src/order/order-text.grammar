@@ -1,0 +1,68 @@
+@top Order {
+  OrderHeader
+  | OrderHeader LineBreaker
+  | OrderHeader LineBreaker OrderBody
+}
+
+@skip { Space }
+
+OrderHeader {
+  OrderMethod DefaultParam NamedParam*
+}
+DefaultParam {
+  ParamValues
+}
+NamedParam {
+  ParamName ParamValues
+}
+ParamValues {
+  (BorderedParamValue | ExpressionParamValue | ParamValue)*
+}
+
+
+@skip {} {
+  OrderMethod {
+    MethodSymbol MethodName
+  }
+  OrderBody {
+    BodyContent
+  }
+  BorderedParamValue {
+    BorderedStart BorderedParamContent? BorderedEnd
+  }
+  ExpressionParamValue {
+    ExpressionStart EmbeddedExpression ExpressionEnd
+  }
+}
+
+@precedence { ExpressionParamValue ParamValue }
+
+@tokens {
+
+  MethodSymbol { "@" }
+  MethodName { ![ \t\n]+ }
+
+  ParamName { "-" $[0-9a-zA-Z] }
+
+  BorderedStart[closedBy=BorderedEnd] { "{" }
+  BorderedEnd[openedBy=BorderedStart] { "}" }
+  BorderedParamContent { ![}]+ }
+
+  ExpressionStart[closedBy=ExpressionEnd] { "${" }
+  ExpressionEnd[openedBy=ExpressionStart] { "}" }
+  EmbeddedExpression { ![}]+ }
+  
+  ParamValue { ![ \t\n{-] ![ \t\n]* }
+  
+  @precedence { ExpressionStart ParamValue }
+
+  Space { $[ \t]+ }
+
+  LineBreaker { $[\n] }
+  
+  BodyContent { ![\z]+ }
+
+  @precedence { LineBreaker BodyContent Space }
+}
+
+@detectDelim

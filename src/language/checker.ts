@@ -4,7 +4,7 @@ import { SyntaxNode } from "@lezer/common";
 import { dialog } from "./lib";
 import { OrderDefinition, OrderManager, Param } from "./order";
 import { zip } from "lodash-es";
-import { checkConstraint } from "./constraint";
+import { checkConstraint, ConstraintType } from "./constraint";
 import { useLabel } from "./decoration";
 import { Diagnostic } from "@codemirror/lint";
 
@@ -64,7 +64,7 @@ export function checkType(view: EditorView): TypeCheckResult {
 
             /** @todo 错误处理 */
             if (!definition) {
-                console.log("未定义的指令", orderName);
+                attachError(`指令${ name }未被定义`, method);
                 break;
             }
 
@@ -165,9 +165,15 @@ export function checkType(view: EditorView): TypeCheckResult {
             } else {
                 // 对于表达式类型的值不做检查
                 if (isExpression) return;
-                const [ accept, reason ] = checkConstraint(value, definition.constraint);
+                const { constraint } = definition;
+                const [ accept, reason ] = checkConstraint(value, constraint);
                 if (!accept) {
-                    console.log(reason);
+                    if (constraint.type === ConstraintType.Free) throw new Error();
+                    attachError([
+                        `参数类型错误, ${ value }`,
+                        reason ? reason :
+                            constraint.label ? `不是${ constraint.label }` : "",
+                    ].join(""), node);
                 }
             }
         });
@@ -195,7 +201,6 @@ export function checkType(view: EditorView): TypeCheckResult {
                         const nameCententNode = nameNode.getChild("ParamNameContent");
                         if (!nameCententNode) return;
                         const name = getValue(nameCententNode);
-                        console.log("name");
                         const paramDefintion = definition.namedParams[name];
                         if (!paramDefintion) {
                             attachError(`未定义的具名参数 -${ name }`, nameNode);
@@ -206,7 +211,6 @@ export function checkType(view: EditorView): TypeCheckResult {
                         }
                         const paramsNode = namedParam.getChild("ParamValues");
                         const params = extractParams(paramsNode);
-                        console.log(params);
                         checkParams(params, paramDefintion.params);
                         return;
                     }

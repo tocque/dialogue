@@ -67,3 +67,12 @@ $: let i = 0;
 ```
 
 `Model` 文档模型，存放所有文档数据的地方，也负责实现实际的编辑操作。
+
+
+
+    "@lezer/generator": "^0.15.4",
+    "mocha": "^9.0.1",
+    "rollup": "^2.60.2",
+    "rollup-plugin-dts": "^4.0.1",
+    "rollup-plugin-ts": "^2.0.4",
+    "typescript": "^4.3.4"

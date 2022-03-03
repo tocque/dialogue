@@ -1,9 +1,0 @@
-/node_modules
-package-lock.json
-/dist
-
-/src/expression/parser.js
-/src/expression/parser.terms.js
-
-/src/script/parser.js
-/src/script/parser.terms.js

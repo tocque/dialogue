@@ -13,9 +13,12 @@
     "baseUrl": ".",
     "paths": {
         "@/*": ["src/*"],
-        "@dialogue/language": ["packages/language/dist"]
+        // "@dialogue/language": ["packages/language/dist"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.tsx", "src/**/*.vue"],
-  "references": [{ "path": "./tsconfig.node.json" }]
+  "references": [
+    { "path": "./tsconfig.node.json" },
+    { "path": "./tsconfig.grammar.json" },
+  ]
 }

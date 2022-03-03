@@ -1,14 +1,29 @@
-@top Order {
+@top Line {
+  Order | Dialog | Comment
+}
+
+@skip { Space }
+
+Order {
   OrderHeader
   | OrderHeader LineBreaker
   | OrderHeader LineBreaker OrderBody
 }
 
-@skip { Space }
+Dialog {
+  DialogHeader
+  | DialogHeader LineBreaker
+  | DialogHeader LineBreaker DialogBody
+  | DialogBody
+}
 
 OrderHeader {
   OrderMethod DefaultParam NamedParam*
 }
+DialogHeader {
+  DialogSymbol DefaultParam NamedParam*
+}
+
 DefaultParam {
   ParamValues
 }
@@ -19,12 +34,14 @@ ParamValues {
   (BorderedParamValue | ExpressionParamValue | ParamValue)*
 }
 
-
 @skip {} {
   OrderMethod {
-    MethodSymbol MethodName
+    OrderSymbol OrderName
   }
   OrderBody {
+    BodyContent
+  }
+  DialogBody {
     BodyContent
   }
   BorderedParamValue {
@@ -33,16 +50,24 @@ ParamValues {
   ExpressionParamValue {
     ExpressionStart EmbeddedExpression ExpressionEnd
   }
+  ParamName {
+    ParamSymbol ParamNameContent
+  }
 }
 
 @precedence { ExpressionParamValue ParamValue }
 
 @tokens {
 
-  MethodSymbol { "@" }
-  MethodName { ![ \t\n]+ }
+  OrderSymbol { "@" }
+  OrderName { ![ \t\n]+ }
+  
+  DialogSymbol { "#" }
 
-  ParamName { "-" $[0-9a-zA-Z] }
+  Comment { "//" ![]* }
+
+  ParamSymbol { "-" }
+  ParamNameContent { $[0-9a-zA-Z] }
 
   BorderedStart[closedBy=BorderedEnd] { "{" }
   BorderedEnd[openedBy=BorderedStart] { "}" }
@@ -62,7 +87,11 @@ ParamValues {
   
   BodyContent { ![\z]+ }
 
-  @precedence { LineBreaker BodyContent Space }
+  @precedence {
+    OrderSymbol DialogSymbol Comment
+    BodyContent
+    Space
+  }
 }
 
 @detectDelim

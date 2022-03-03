@@ -1,11 +1,14 @@
 import { closeBrackets } from "@codemirror/closebrackets";
 import { Compartment, EditorState, Transaction } from "@codemirror/state";
-import { EditorView, keymap } from "@codemirror/view";
+import { Decoration, DecorationSet, EditorView, keymap, ViewPlugin, ViewUpdate } from "@codemirror/view";
 import { computed, nextTick, Ref, ref, shallowReactive } from "vue";
 import { lightplus } from "@/theme";
 import { Model } from ".";
 import { javascript } from "@codemirror/lang-javascript";
-import { Dialog, Order } from "@/language";
+import { Dialog } from "@/grammar";
+import { LineChildPolicy, LineContentType } from "@/language/types";
+import { getContentType } from "@/language/utils";
+import { checkType } from "@/language/checker";
 
 const idMap = new Map<number, Line>();
 let id = 0;
@@ -18,30 +21,6 @@ export function getLineById(id: number) {
     const line = tryGetLineById(id);
     if (!line) throw Error(`line ${ id } doesn't exist`);
     return line;
-}
-
-/**
- * 行的内容类型
- */
-export enum LineContentType {
-    Dialog,
-    Order,
-    Script,
-    Template,
-}
-
-/**
- * 行的子节点策略
- */
-export enum LineChildPolicy {
-    /** 没有子节点 */
-    NoChild,
-    /** 自由添加子节点 */
-    FreeChild,
-    /** 模板子节点，可以使用一个模板来添加节点 */
-    TemplateChild,
-    /** 预定义子节点 */
-    PreDefinedChild,
 }
 
 export interface LineData {
@@ -66,6 +45,9 @@ export class Line {
 
         const { content, children = [] } = data;
 
+        this.decorations = Decoration.set([]);
+
+        /** @todo 拆分定义 */
         this.view = new EditorView({
             state: EditorState.create({
                 doc: content,
@@ -73,7 +55,6 @@ export class Line {
                     lightplus,
                     closeBrackets(),
                     this.languageConf.of([]),
-                    // Dialog(),
                     keymap.of([
                         {
                             key: "Shift-Enter",
@@ -95,6 +76,16 @@ export class Line {
                             }
                         }
                     ]),
+                    ViewPlugin.define(() => ({
+                        update: (update: ViewUpdate) => {
+                            if (!update.docChanged) return;
+                            this.checkType();
+                        }
+                    }), {
+                        decorations: () => {
+                            return this.decorations;
+                        }
+                    })
                 ],
             }),
             dispatch: (tr: Transaction) => {
@@ -110,6 +101,7 @@ export class Line {
         this.contentType = this.getContentType();
         this.childPolicy.value = this.getChildPolicy();
         this.setHighLight(this.contentType);
+        this.checkType();
 
         this.children = shallowReactive(children.map((e) => new Line(e, this)));
         if (this.childPolicy.value === LineChildPolicy.FreeChild && this.children.length === 0) {
@@ -163,20 +155,14 @@ export class Line {
      */
     getContentType() {
         const firstLine = this.getFirstLine();
-        if (firstLine.startsWith("@")) {
-            return LineContentType.Order;
-        } else if (firstLine.startsWith("$:")) {
-            return LineContentType.Script;
-        } else if (firstLine.startsWith("&")) {
-            return LineContentType.Template;
-        }
-        return LineContentType.Dialog;
+        return getContentType(firstLine);
     }
 
     getChildPolicy() {
         switch (this.contentType) {
             case LineContentType.Dialog: return LineChildPolicy.NoChild;
             case LineContentType.Script: return LineChildPolicy.NoChild;
+            case LineContentType.Comment: return LineChildPolicy.NoChild;
             case LineContentType.Order: return LineChildPolicy.NoChild;
             case LineContentType.Template: return LineChildPolicy.NoChild;
         }
@@ -196,12 +182,20 @@ export class Line {
         const view = this.view;
         view.update([ tr ]);
         if (tr.changes.empty) return;
-        
+        this.checkType();
+    }
+
+    private decorations: DecorationSet;
+
+    checkType() {
         const newType = this.getContentType();
-        console.log(newType, this.contentType);
         if (newType !== this.contentType) {
             this.contentType = newType;
             this.setHighLight(this.contentType);
+        }
+        if (this.contentType !== LineContentType.Script) {
+            const { decorations } = checkType(this.view);
+            this.decorations = decorations;
         }
     }
 
@@ -210,14 +204,10 @@ export class Line {
     setHighLight(type: LineContentType) {
         switch (type) {
             case LineContentType.Dialog:
+            case LineContentType.Order:
+            case LineContentType.Comment:
                 this.view.dispatch({
                     effects: this.languageConf.reconfigure(Dialog())
-                });
-                return;
-            case LineContentType.Order:
-
-                this.view.dispatch({
-                    effects: this.languageConf.reconfigure(Order())
                 });
                 return;
             case LineContentType.Script:

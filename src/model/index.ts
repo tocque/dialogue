@@ -1,4 +1,4 @@
-import { getLineById, Line, LineChildPolicy, LineData, RootLine } from "./line";
+import { getLineById, Line, LineData, RootLine } from "./line";
 
 export class Model {
 

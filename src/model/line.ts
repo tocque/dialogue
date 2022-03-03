@@ -5,7 +5,7 @@ import { computed, nextTick, Ref, ref, shallowReactive } from "vue";
 import { lightplus } from "@/theme";
 import { Model } from ".";
 import { javascript } from "@codemirror/lang-javascript";
-import { Dialog } from "@/grammar";
+import { Dialog } from "@/language";
 import { LineChildPolicy, LineContentType } from "@/language/types";
 import { getContentType } from "@/language/utils";
 import { checkType } from "@/language/checker";
@@ -59,7 +59,7 @@ export class Line {
                     lightplus,
                     bracketMatching(),
                     closeBrackets(),
-                    autocompletion(),
+                    autocompletion({}),
                     this.languageConf.of([]),
                     linter(() => {
                         if (this.contentType === LineContentType.Script) {
@@ -90,12 +90,7 @@ export class Line {
                             }
                         }
                     ]),
-                    ViewPlugin.define(() => ({
-                        update: (update: ViewUpdate) => {
-                            if (!update.docChanged) return;
-                            this.checkType();
-                        }
-                    }), {
+                    ViewPlugin.define(() => ({}), {
                         decorations: () => {
                             return this.decorations;
                         }
@@ -196,6 +191,7 @@ export class Line {
         const view = this.view;
         view.update([ tr ]);
         if (tr.changes.empty) return;
+        this.checkType();
     }
 
     private decorations: DecorationSet;

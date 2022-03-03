@@ -52,6 +52,10 @@ export class OrderManager {
     static get(name: string) {
         return OrderRegistry.get(name);
     }
+
+    static list() {
+        return [ ...OrderRegistry.keys() ];
+    }
 }
 
 export function defineOrder(

@@ -64,7 +64,7 @@ export function checkType(view: EditorView): TypeCheckResult {
 
             /** @todo 错误处理 */
             if (!definition) {
-                attachError(`指令${ name }未被定义`, method);
+                attachError(`指令${ orderName }未被定义`, method);
                 break;
             }
 

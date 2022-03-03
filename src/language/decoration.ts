@@ -10,7 +10,7 @@ class LabelWidget extends WidgetType {
         return other.content == this.content }
 
     toDOM() {
-        let wrap = document.createElement("span");
+        const wrap = document.createElement("span");
         wrap.setAttribute("aria-hidden", "true");
         wrap.className = "cm-label-widget";
         wrap.innerText = this.content;
@@ -28,23 +28,3 @@ export function useLabel(content: string) {
         side: 1
     });
 }
-
-// import {EditorView, Decoration} from "@codemirror/view"
-// import {syntaxTree} from "@codemirror/language"
-
-// let deco = 
-//   widgets.push(deco.range(to))
-// function checkboxes(view: EditorView) {
-//   let widgets = []
-//   for (let {from, to} of view.visibleRanges) {
-//     syntaxTree(view.state).iterate({
-//       from, to,
-//       enter: (type, from, to) => {
-//         if (type.name == "BooleanLiteral") {
-//           let isTrue = view.state.doc.sliceString(from, to) == "true"
-//         }
-//       }
-//     })
-//   }
-//   return Decoration.set(widgets)
-// }

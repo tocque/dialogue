@@ -9,12 +9,16 @@
     "prepare": "rollup -c"
   },
   "dependencies": {
+    "@codemirror/autocomplete": "^0.19.13",
     "@codemirror/closebrackets": "^0.19.1",
+    "@codemirror/commands": "^0.19.8",
     "@codemirror/highlight": "^0.19.7",
     "@codemirror/lang-javascript": "^0.19.7",
     "@codemirror/language": "^0.19.7",
+    "@codemirror/lint": "^0.19.5",
+    "@codemirror/matchbrackets": "^0.19.4",
     "@codemirror/state": "^0.19.9",
-    "@codemirror/view": "^0.19.45",
+    "@codemirror/view": "^0.19.46",
     "@lezer/common": "^0.15.11",
     "@lezer/lr": "^0.15.8",
     "vue": "^3.2.25"

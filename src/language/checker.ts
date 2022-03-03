@@ -1,128 +1,48 @@
 import { syntaxTree } from "@codemirror/language";
-import { DecorationSet, EditorView } from "@codemirror/view";
+import { Decoration, DecorationSet, EditorView, Range } from "@codemirror/view";
 import { SyntaxNode } from "@lezer/common";
 import { dialog } from "./lib";
 import { OrderDefinition, OrderManager, Param } from "./order";
 import { zip } from "lodash-es";
 import { checkConstraint } from "./constraint";
-
-const getValue = (view: EditorView, node: SyntaxNode) => {
-    return view.state.doc.sliceString(node.from, node.to);
-}
-
-type ExtractedParam = [ string, boolean, number, number ];
-
-/**
- * ParamValues = (BorderedParamValue | ExpressionParamValue | ParamValue)*
- * @param view 
- * @param node 
- * @returns 
- */
-function extractParams(view: EditorView, node: SyntaxNode | null): ExtractedParam[] {
-    if (!node) return [];
-    if (node.name !== "ParamValues") throw new Error("");
-
-    const getParamValue = (node: SyntaxNode): string => {
-        switch (node.name) {
-            case "ParamValue":
-                return getValue(view, node);
-            // BorderedParamValue = BorderedStart BorderedParamContent? BorderedEnd
-            case "BorderedParamValue": {
-                const contentNode = node.getChild("BorderedParamContent");
-                if (!contentNode) return "";
-                return getValue(view, contentNode);
-            }
-            // ExpressionParamValue = ExpressionStart EmbeddedExpression ExpressionEnd
-            case "ExpressionParamValue":
-                const contentNode = node.getChild("EmbeddedExpression");
-                if (!contentNode) return "";
-                return getValue(view, contentNode);
-            default: {
-                console.log(node);
-                throw new Error("");
-            }
-        }
-    }
-    const children = [];
-    for (let child = node.firstChild; child; child = child!.nextSibling) {
-        if (child.name === "Space") continue;
-        children.push(child);
-    }
-    return children.map((node) => {
-        const value = getParamValue(node);
-        return [ value, node.name === "ExpressionParamValue", node.from, node.to ];
-    });
-}
-
-function checkParams(view: EditorView, params: ExtractedParam[], definitions: Param[]) {
-    zip(params, definitions).forEach(([ param, definition ]) => {
-        if (param && !definition) {
-            console.log("多余的参数", param);
-        } else if (!param && definition) {
-            if (!definition.optional[0]) {
-                console.log("缺少参数", param);
-            }
-        } else if (param && definition) {
-            // 对于表达式类型的值不做检查
-            if (param[1]) return;
-            const [ accept, reason ] = checkConstraint(param[0], definition.constraint);
-            if (!accept) {
-                console.log(reason);
-            }
-        }
-    });
-}
-
-function checkOrder(view: EditorView, definition: OrderDefinition) {
-    const tree = syntaxTree(view.state);
-    tree.iterate({
-        enter: (type, from, to, getNode) => {
-            switch (type.name) {
-                // DefaultParam = ParamValues
-                case "DefaultParam": {
-                    const defaultParam = getNode();
-                    const paramsNode = defaultParam.getChild("ParamValues");
-                    const params = extractParams(view, paramsNode);
-                    checkParams(view, params, definition.params);
-                    return;
-                }
-                // NamedParam = ParamName ParamValues
-                // ParamName = ParamSymbol ParamNameContent
-                case "NamedParam": {
-                    const namedParam = getNode();
-                    const nameNode = namedParam.getChild("ParamName");
-                    if (!nameNode) throw new Error("");
-                    const nameCententNode = nameNode.getChild("ParamNameContent");
-                    if (!nameCententNode) throw new Error("");
-                    const name = getValue(view, nameCententNode);
-                    console.log("name");
-                    if (!(name in definition.namedParams)) {
-                        console.log("未定义的具名参数", name);
-                        return;
-                    }
-                    const paramsNode = namedParam.getChild("ParamValues");
-                    const params = extractParams(view, paramsNode);
-                    console.log(params);
-                    checkParams(view, params, definition.namedParams[name].params);
-                    return;
-                }
-            }
-        }
-    })
-}
+import { useLabel } from "./decoration";
+import { Diagnostic } from "@codemirror/lint";
 
 interface TypeCheckResult {
     decorations: DecorationSet;
+    diagnostics: Diagnostic[];
 }
 
+/**
+ * @todo 需要性能优化时，可以改写为闭包形式
+ * @param view 
+ * @returns 
+ */
 export function checkType(view: EditorView): TypeCheckResult {
+
+    const decorations = [] as Range<Decoration>[];
+    const diagnostics = [] as Diagnostic[];
+
+    const attachLabel = decorationAttacher(useLabel);
+    const attachInfo = diagnosticAttacher("info");
+    const attachWarning = diagnosticAttacher("warning");
+    const attachError = diagnosticAttacher("error");
+
+    const retval = () => {
+        return {
+            decorations: Decoration.set(decorations),
+            diagnostics,
+        }
+    };
+    
+    const input = view.state.doc.toString();
     const tree = syntaxTree(view.state);
+
     const root = tree.topNode;
     if (root.name !== "Line") throw new Error("");
     const line = root.firstChild;
-    if (!line || line.name === "⚠") return;
+    if (!line || line.name === "⚠") return retval();
 
-    const decorations = [];
     // line.name: Order | Dialog | Comment
     switch (line.name) {
         case "Order": {
@@ -133,13 +53,13 @@ export function checkType(view: EditorView): TypeCheckResult {
             // OrderMethod = OrderSymbol OrderName
             const method = header.firstChild;
             /** @todo 错误处理 */
-            if (!method || method.name !== "OrderMethod") return;
+            if (!method || method.name !== "OrderMethod") break;
 
             const name = method.lastChild;
             /** @todo 错误处理 */
             if (!name || name.name !== "OrderName") break;
 
-            const orderName = getValue(view, name);
+            const orderName = getValue(name);
             const definition = OrderManager.get(orderName);
 
             /** @todo 错误处理 */
@@ -149,7 +69,7 @@ export function checkType(view: EditorView): TypeCheckResult {
             }
 
             checkOrder(view, definition);
-            return;
+            break;
         }
         case "Dialog": {
             const header = line.firstChild;
@@ -157,13 +77,141 @@ export function checkType(view: EditorView): TypeCheckResult {
 
             checkOrder(view, dialog);
 
-            return;
+            break;
         }
         case "Comment": {
-            return;
+            break;
         }
         default: {
             throw new Error("");
         }
+    }
+    return retval();
+
+    function getValue(node: SyntaxNode) {
+        return input.slice(node.from, node.to);
+    }
+
+    function decorationAttacher<T extends any[]>(useDecoration: (...args: T) => Decoration) {
+        return (pos: number, ...rest: T) => {
+            decorations.push(useDecoration(...rest).range(pos));
+        }
+    }
+
+    function diagnosticAttacher (severity: "info" | "warning" | "error") {
+        return (message: string, node: SyntaxNode) => {
+            const { from, to } = node;
+            diagnostics.push({
+                from, to, severity, source: "dialogue 语言服务", message,
+            });
+        }
+    }
+
+    type ExtractedParam = [ string, SyntaxNode, boolean ];
+
+    /**
+     * ParamValues = (BorderedParamValue | ExpressionParamValue | ParamValue)*
+     * @param view 
+     * @param node 
+     * @returns 
+     */
+    function extractParams(node: SyntaxNode | null): ExtractedParam[] {
+        if (!node) return [];
+        if (node.name !== "ParamValues") throw new Error("");
+
+        const getParamValue = (node: SyntaxNode): string => {
+            switch (node.name) {
+                case "ParamValue":
+                    return getValue(node);
+                // BorderedParamValue = BorderedStart BorderedParamContent? BorderedEnd
+                case "BorderedParamValue": {
+                    const contentNode = node.getChild("BorderedParamContent");
+                    if (!contentNode) return "";
+                    return getValue(contentNode);
+                }
+                // ExpressionParamValue = ExpressionStart EmbeddedExpression ExpressionEnd
+                case "ExpressionParamValue":
+                    const contentNode = node.getChild("EmbeddedExpression");
+                    if (!contentNode) return "";
+                    return getValue(contentNode);
+                default: {
+                    console.log(node);
+                    throw new Error("");
+                }
+            }
+        }
+        const children = [];
+        for (let child = node.firstChild; child; child = child!.nextSibling) {
+            if (child.name === "Space") continue;
+            children.push(child);
+        }
+        return children.map((node) => {
+            const value = getParamValue(node);
+            return [ value, node, node.name === "ExpressionParamValue" ];
+        });
+    }
+
+    function checkParams(params: ExtractedParam[], definitions: Param[]) {
+        zip(params, definitions).forEach(([ param, definition ]) => {
+            if (!param) {
+                if (!definition!.optional[0]) {
+                    console.log("缺少参数", param);
+                }
+                return;
+            }
+            const [ value, node, isExpression ] = param;
+            if (!definition) {
+                attachError("多余的参数", node);
+            } else {
+                // 对于表达式类型的值不做检查
+                if (isExpression) return;
+                const [ accept, reason ] = checkConstraint(value, definition.constraint);
+                if (!accept) {
+                    console.log(reason);
+                }
+            }
+        });
+    }
+
+    function checkOrder(view: EditorView, definition: OrderDefinition) {
+        const tree = syntaxTree(view.state);
+        tree.iterate({
+            enter: (type, from, to, getNode) => {
+                switch (type.name) {
+                    // DefaultParam = ParamValues
+                    case "DefaultParam": {
+                        const defaultParam = getNode();
+                        const paramsNode = defaultParam.getChild("ParamValues");
+                        const params = extractParams(paramsNode);
+                        checkParams(params, definition.params);
+                        return;
+                    }
+                    // NamedParam = ParamName ParamValues
+                    // ParamName = ParamSymbol ParamNameContent
+                    case "NamedParam": {
+                        const namedParam = getNode();
+                        const nameNode = namedParam.getChild("ParamName");
+                        if (!nameNode) throw new Error("");
+                        const nameCententNode = nameNode.getChild("ParamNameContent");
+                        if (!nameCententNode) return;
+                        const name = getValue(nameCententNode);
+                        console.log("name");
+                        const paramDefintion = definition.namedParams[name];
+                        if (!paramDefintion) {
+                            attachError(`未定义的具名参数 -${ name }`, nameNode);
+                            return;
+                        }
+                        if (paramDefintion.label) {
+                            attachLabel(nameCententNode.to, `:${ paramDefintion.label }`);
+                        }
+                        const paramsNode = namedParam.getChild("ParamValues");
+                        const params = extractParams(paramsNode);
+                        console.log(params);
+                        checkParams(params, paramDefintion.params);
+                        return;
+                    }
+                }
+            }
+        })
     }
 }

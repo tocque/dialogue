@@ -28,7 +28,18 @@ onMounted(() => {
     padding: 2px;
     background: #EEEEEE;
 }
-.container::v-deep .cm-line {
-    font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
+.container::v-deep {
+    .cm-line {
+        font-size: 16px;
+        font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
+    }
+    .cm-label-widget {
+        padding: 1px 4px;
+        margin: 0 2px;
+        border-radius: 2px;
+        font-size: 14px;
+        color: #747474;
+        background-color: #DDDDDD;
+    }
 }
 </style>

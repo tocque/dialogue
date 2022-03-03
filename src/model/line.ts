@@ -9,6 +9,10 @@ import { Dialog } from "@/grammar";
 import { LineChildPolicy, LineContentType } from "@/language/types";
 import { getContentType } from "@/language/utils";
 import { checkType } from "@/language/checker";
+import { standardKeymap } from "@codemirror/commands";
+import { bracketMatching } from "@codemirror/matchbrackets";
+import { autocompletion } from "@codemirror/autocomplete";
+import { Diagnostic, linter } from "@codemirror/lint";
 
 const idMap = new Map<number, Line>();
 let id = 0;
@@ -53,9 +57,19 @@ export class Line {
                 doc: content,
                 extensions: [
                     lightplus,
+                    bracketMatching(),
                     closeBrackets(),
+                    autocompletion(),
                     this.languageConf.of([]),
+                    linter(() => {
+                        if (this.contentType === LineContentType.Script) {
+                            return [];
+                        } else {
+                            return this.diagnostics;
+                        }
+                    }),
                     keymap.of([
+                        ...standardKeymap,
                         {
                             key: "Shift-Enter",
                             preventDefault: true,
@@ -182,10 +196,10 @@ export class Line {
         const view = this.view;
         view.update([ tr ]);
         if (tr.changes.empty) return;
-        this.checkType();
     }
 
     private decorations: DecorationSet;
+    private diagnostics: Diagnostic[] = [];
 
     checkType() {
         const newType = this.getContentType();
@@ -194,8 +208,9 @@ export class Line {
             this.setHighLight(this.contentType);
         }
         if (this.contentType !== LineContentType.Script) {
-            const { decorations } = checkType(this.view);
+            const { decorations, diagnostics } = checkType(this.view);
             this.decorations = decorations;
+            this.diagnostics = diagnostics;
         }
     }
 

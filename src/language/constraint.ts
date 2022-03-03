@@ -134,6 +134,12 @@ export const constraintPreset = {
             return true;
         }, label ?? `[${ min } - ${ max }]`)
     ),
+    NonnegativeInt: defineJudgeConstraint((value: string) => {
+        if (!isInt(value)) return [ false, "不是整数" ];
+        const num = Number.parseInt(value);
+        if (num < 0) return [ false, `是负数` ];
+        return true;
+    }, `非负整数`),
     /**
      * 数字类型的参数限制
      * 在整数的基础上支持浮点数

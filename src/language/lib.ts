@@ -23,7 +23,13 @@ OrderManager.register(defineOrder("移动", {
     ]),
     namedParams: defineNamedParams({
         "t": [ defineParamList([
-            [ constraintPreset.RangeInt(0, 5000) ],
+            [ constraintPreset.NonnegativeInt ],
         ]), [ "移动速度", "移动速度，参数代表每一步的时间" ] ]
     }),
-}))
+}));
+
+OrderManager.register(defineOrder("等待", {
+    params: defineParamList([
+        [ [ constraintPreset.NonnegativeInt, "500" ], [ "等待时间", "等待时间，单位为毫秒" ] ],
+    ]),
+}));

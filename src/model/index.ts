@@ -12,7 +12,7 @@ export class Model {
         const line = getLineById(lineId);
         const parent = line.parent;
         if (!parent) throw Error(`line ${ lineId} haven't been append`);
-        const newLine = new Line({ content: "" });
+        const newLine = Line.newLine();
         parent.insertAfter(newLine, line);
         newLine.focus();
     }
@@ -27,5 +27,5 @@ export class Model {
         const nextFocus = line.previousSibling() || parent;
         parent.removeChild(line);
         nextFocus.focus();
-    }    
+    }
 }

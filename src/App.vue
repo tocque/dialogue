@@ -7,7 +7,7 @@ import EditorView from './editor/EditorView.vue';
     <div class="main">
         <div class="title">
             <h2>Dialogue</h2>
-            <span class="version">v0.0.1</span>
+            <span class="version">v0.1.0</span>
         </div>
         <EditorView></EditorView>
     </div>

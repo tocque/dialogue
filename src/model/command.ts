@@ -5,8 +5,9 @@
 import { cursorLineDown, cursorLineUp, standardKeymap } from "@codemirror/commands";
 import { EditorSelection, EditorState, SelectionRange } from "@codemirror/state";
 import { Command, EditorView, keymap } from "@codemirror/view";
+import { first, last } from "lodash-es";
 import { Model } from ".";
-import { Line } from "./line";
+import { Line, RootLine } from "./line";
 
 type Action = (range: SelectionRange) => SelectionRange;
 
@@ -68,6 +69,45 @@ export function myKeymap(line: Line) {
     }
 
     /**
+     * 获取上一行
+     * 具体来说，依次尝试获得
+     *  - 以上一个同级的行为根的子树的最后一个节点
+     *  - 父亲
+     */
+    const getPreviousLine = () => {
+        const previousSibling = line.previousSibling();
+        if (!previousSibling) {
+            if (line.parent && !(line.parent instanceof RootLine)) return line.parent;
+            return null;
+        }
+        let result = previousSibling;
+        while (result.children.length > 0) {
+            result = last(result.children)!;
+        }
+        return result;
+    }
+
+    /**
+     * 获取下一行
+     * 具体来说，依次尝试获得
+     *  - 第一个子行
+     *  - 下一个同级的行
+     *  - 祖先拥有的最近的下一个同级行
+     */
+    const getNextLine = () => {
+        if (line.children.length > 0) return first(line.children)!;
+        const nextSibling = line.nextSibling();
+        if (nextSibling) return nextSibling;
+        let ancestor = line;
+        while (ancestor.parent && !(ancestor instanceof RootLine)) {
+            const nextSibling = ancestor.nextSibling();
+            if (nextSibling) return nextSibling;
+            ancestor = ancestor.parent;
+        }
+        return null;
+    }
+
+    /**
      * 光标上移一行的逻辑
      * 1. 尝试上移到上一文本行 成功则结束
      * 2. 尝试聚焦上一行
@@ -77,31 +117,29 @@ export function myKeymap(line: Line) {
      * 
      * @todo 优化行间移动的光标具体位置
      */
-    const myCursorLineUp = modelWrapper((view, model) => {
+    const myCursorLineUp: Command = (view) => {
         return myCursorByLine(view, false)
-            || tryFoucs(line.previousSibling())
+            || tryFoucs(getPreviousLine())
             || cursorLineUp(view);
-    });
+    }
 
     const myCursorLineDown: Command = (view) => {
         return myCursorByLine(view, true)
-            || tryFoucs(line.nextSibling())
+            || tryFoucs(getNextLine())
             || cursorLineDown(view);
     }
 
-    const newLine: Command = () => {
-        if (!line.model) return false;
-        line.model.appendNewLine(line.id);
+    const newLine = modelWrapper((view, model) => {
+        model.appendNewLine(line.id);
         return true;
-    };
+    });
 
-    const backspace: Command = () => {
-        if (!line.model) return false;
+    const backspace = modelWrapper((view, model) => {
         if (!line.isEmpty()) return false;
         if (!line.isDeletable()) return false;
-        line.model.deleteLine(line.id);
+        model.deleteLine(line.id);
         return true;
-    };
+    });
 
     return keymap.of([
         { key: "ArrowUp", run: myCursorLineUp },

@@ -8,11 +8,13 @@ import { javascript } from "@codemirror/lang-javascript";
 import { Dialog } from "@/language";
 import { LineChildPolicy, LineContentType } from "@/language/types";
 import { getContentType } from "@/language/utils";
-import { checkType } from "@/language/checker";
+import { checkOrder, CheckResult, checkScript } from "@/language/checker";
 import { bracketMatching } from "@codemirror/matchbrackets";
 import { autocompletion } from "@codemirror/autocomplete";
 import { Diagnostic, linter } from "@codemirror/lint";
 import { myKeymap } from "./command";
+import { queryOrderName } from "@/language/query";
+import { OrderManager } from "@/language/order";
 
 const idMap = new Map<number, Line>();
 let id = 0;
@@ -73,20 +75,16 @@ export class Line {
             },
         });
 
-        if (parent) {
-            this.parent = parent;
-            this.model = parent.model;
-        }
-
+        // 时序: 初始化属性 - 初始化子节点 - 类型检查
         this.contentType = this.getContentType();
-        this.childPolicy.value = this.getChildPolicy();
-        this.setHighLight(this.contentType);
-        this.checkType();
+        this.childPolicy = this.getChildPolicy();
+        this.setLanguage(this.contentType);
 
         this.children = shallowReactive(children.map((e) => new Line(e, this)));
-        if (this.childPolicy.value === LineChildPolicy.FreeChild && this.children.length === 0) {
-            this.appendChild(new Line({ content: "" }));
+        if (parent) {
+            this.linkParent(parent);
         }
+        this.languageWork();
     }
 
     /**
@@ -99,6 +97,20 @@ export class Line {
     }
 
     focus() {
+        // 如果当前dom不在视口内，则滚动画面以对准dom
+        /** @todo 对于封装好的编辑器，允许定义容器dom */
+        const dom = this.view.dom;
+        const rect = dom.getBoundingClientRect();
+        if (rect.top <= 0) {
+            dom.scrollTo({
+                top: 0,
+                behavior: "auto",
+            });
+        } else if (rect.bottom >= window.innerHeight) {
+            dom.scrollTo({
+                top: dom.scrollHeight,
+            });
+        }
         nextTick(() => {
             this.view.focus();
         });
@@ -123,10 +135,10 @@ export class Line {
         // 有子节点则不可删除
         if (this.children.length > 0) return false;
         // 预定义的子节点不可删除
-        if (this.parent.childPolicy.value === LineChildPolicy.PreDefinedChild) return false;
+        if (this.parent.childPolicy === LineChildPolicy.PreDefinedChild) return false;
         // 对于自由的子节点，如果这是唯一一个则不可删除
-        if (this.parent.childPolicy.value === LineChildPolicy.FreeChild
-            && this.parent.children.length === 0) return false;
+        if (this.parent.childPolicy === LineChildPolicy.FreeChild
+            && this.parent.children.length === 1) return false;
         return true;
     }
 
@@ -138,17 +150,49 @@ export class Line {
         return getContentType(firstLine);
     }
 
-    getChildPolicy() {
+    /**
+     * 获取当前的指令名，如果当前不是指令，则返回null
+     */
+    getOrderName(): string | null {
         switch (this.contentType) {
-            case LineContentType.Dialog: return LineChildPolicy.NoChild;
-            case LineContentType.Script: return LineChildPolicy.NoChild;
-            case LineContentType.Comment: return LineChildPolicy.NoChild;
-            case LineContentType.Order: return LineChildPolicy.NoChild;
-            case LineContentType.Template: return LineChildPolicy.NoChild;
+            case LineContentType.Dialog:
+            case LineContentType.Script:
+            case LineContentType.Comment:
+                return null;
+            case LineContentType.Order: {
+                return queryOrderName(this.view.state);
+            }
+            case LineContentType.SubOrder: {
+                const name = queryOrderName(this.view.state);
+                if (!name) return null;
+                if (!this.parent) return null;
+                const parentName = this.parent.getOrderName();
+                if (!parentName) return null;
+                /** @todo 封装子指令的连接方法 */
+                return parentName + " " + name;
+            }
         }
     }
 
-    readonly childPolicy: Ref<LineChildPolicy> = ref(LineChildPolicy.NoChild);
+    getChildPolicy() {
+        switch (this.contentType) {
+            case LineContentType.Dialog:
+            case LineContentType.Script:
+            case LineContentType.Comment:
+                return LineChildPolicy.NoChild;
+            case LineContentType.Order: 
+            case LineContentType.SubOrder: {
+                const name = this.getOrderName();
+                // 没有指令名时，默认为无子节点
+                if (!name) return LineChildPolicy.NoChild;
+                const definition = OrderManager.get(name);
+                if (!definition) return LineChildPolicy.NoChild;
+                return definition.childPolicy;
+            }
+        }
+    }
+
+    private childPolicy: LineChildPolicy;
 
     private contentType: LineContentType;
 
@@ -162,35 +206,64 @@ export class Line {
         const view = this.view;
         view.update([ tr ]);
         if (tr.changes.empty) return;
-        this.checkType();
+        this.languageWork();
     }
 
     private decorations: DecorationSet;
     private diagnostics: Diagnostic[] = [];
 
-    checkType() {
-        const newType = this.getContentType();
-        if (newType !== this.contentType) {
-            this.contentType = newType;
-            this.setHighLight(this.contentType);
+    languageWork() {
+        const nowType = this.getContentType();
+        if (nowType !== this.contentType) {
+            this.contentType = nowType;
+            this.setLanguage(this.contentType);
         }
+        const { decorations = Decoration.set([]), diagnostics = [] } = ((): CheckResult => {
+            switch(this.contentType) {
+                case LineContentType.Dialog:
+                case LineContentType.Order:
+                    return checkOrder(this.view);
+                case LineContentType.SubOrder: {
+                    if (!this.parent) return {};
+                    return checkOrder(this.view, this.parent.getOrderName() ?? void 0);
+                }
+                case LineContentType.Comment:
+                    return {};
+                case LineContentType.Script:
+                    return checkScript(this.view);
+            }
+        })();
+        this.decorations = decorations;
+        this.diagnostics = diagnostics;
         if (this.contentType !== LineContentType.Script) {
-            const { decorations, diagnostics } = checkType(this.view);
-            this.decorations = decorations;
-            this.diagnostics = diagnostics;
         } else {
             this.diagnostics = [];
+        }
+        this.childPolicy = this.getChildPolicy();
+        if (this.children.length === 0) {
+            if (this.childPolicy === LineChildPolicy.FreeChild) {
+                this.appendChild(new Line({ content: "" }));
+            } else if (this.childPolicy === LineChildPolicy.PreDefinedChild) {
+                const name = this.getOrderName();
+                if (!name) throw new Error("");
+                const definition = OrderManager.get(name);
+                if (definition?.initChildren) {
+                    definition.initChildren.forEach((e) => {
+                        this.appendChild(new Line(e));
+                    })
+                }
+            }
         }
     }
 
     private languageConf = new Compartment();
 
-    setHighLight(type: LineContentType) {
+    setLanguage(type: LineContentType) {
         switch (type) {
             case LineContentType.Dialog:
             case LineContentType.Order:
             case LineContentType.Comment:
-            case LineContentType.Template:
+            case LineContentType.SubOrder:
                 this.view.dispatch({
                     effects: this.languageConf.reconfigure(Dialog())
                 });
@@ -201,6 +274,14 @@ export class Line {
                 });
                 return;
         }
+    }
+
+    setModel(model: Model | undefined) {
+        this.model = model;
+        this.children.forEach((e) => {
+            e.setModel(model);
+        });
+        this.languageWork();
     }
 
     // ============ 树操作接口 ============
@@ -219,12 +300,12 @@ export class Line {
 
     linkParent(line: Line) {
         this.parent = line;
-        this.model = line.model;
+        this.setModel(this.parent.model);
     }
 
     unlinkParent() {
         this.parent = void 0;
-        this.model = void 0;
+        this.setModel(void 0);
     }
 
     remove() {
@@ -237,7 +318,6 @@ export class Line {
             childNode.remove();
         }
         this.children.push(childNode);
-        console.log(this.children.length, childNode);
         childNode.linkParent(this);
     }
 
@@ -281,11 +361,9 @@ export class Line {
 export class RootLine extends Line {
 
     constructor(model: Model, data: LineData[] = []) {
-        // 由于model初始化顺序，这里只能使用hack方法来处理
-        const line = Line.newLine();
-        line.model = model;
-        super({ content: "", children: data }, line);
+        super({ content: "", children: data });
         this.parent = this;
+        this.setModel(model);
     }
 
     getChildPolicy(): LineChildPolicy {

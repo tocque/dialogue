@@ -6,7 +6,7 @@ export function getContentType(content: string) {
     } else if (content.startsWith("$:")) {
         return LineContentType.Script;
     } else if (content.startsWith("&")) {
-        return LineContentType.Template;
+        return LineContentType.SubOrder;
     } else if (content.startsWith("//")) {
         return LineContentType.Comment;
     }

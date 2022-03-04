@@ -15,18 +15,28 @@ onMounted(() => {
     line.mount(container.value);
 });
 
+const childrenIds = line.getChildrenIds();
+
 </script>
 <template>
-    <div class="container" ref="container"></div>
-    <!-- <div v-if="brenches.length > 0">
-
-    </div> -->
+    <div class="line">
+        <div class="container" ref="container"></div>
+        <template v-for="lineId of childrenIds" :key="lineId">
+            <LineView class="child-line" :line-id="lineId"></LineView>
+        </template>
+    </div>
 </template>
 <style lang="less" scoped>
-.container {
+.line {
     margin: 2px;
+    background: #F8F8F8;
+}
+.container {
     padding: 2px;
     background: #EEEEEE;
+}
+.child-line {
+    margin-left: 24px;
 }
 .container::v-deep {
     .cm-line {

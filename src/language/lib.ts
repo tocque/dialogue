@@ -5,6 +5,7 @@
 
 import { constraintPreset } from "./constraint";
 import { defineNamedParams, defineOrder, defineParamList, OrderManager } from "./order";
+import { LineChildPolicy } from "./types";
 
 export const dialog = defineOrder("对话", {
     params: defineParamList([], [
@@ -33,3 +34,26 @@ OrderManager.register(defineOrder("等待", {
         [ [ constraintPreset.NonnegativeInt, "500" ], [ "等待时间", "等待时间，单位为毫秒" ] ],
     ]),
 }));
+
+const IfBrench = defineOrder("成立的场合", {
+    childPolicy: LineChildPolicy.FreeChild,
+});
+
+const ElseBrench = defineOrder("不成立的场合", {
+    childPolicy: LineChildPolicy.FreeChild,
+});
+
+OrderManager.register(defineOrder("条件分歧", {
+    params: defineParamList([
+        [ [ constraintPreset.Free, "${}" ], [ "条件" ] ]
+    ]),
+    subOrders: [
+        IfBrench,
+        ElseBrench,
+    ],
+    childPolicy: LineChildPolicy.PreDefinedChild,
+    initChildren: [
+        { content: "&成立的场合" },
+        { content: "&不成立的场合" },
+    ]
+}))

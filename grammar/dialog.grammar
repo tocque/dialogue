@@ -59,7 +59,7 @@ ParamValues {
 
 @tokens {
 
-  OrderSymbol { "@" }
+  OrderSymbol { $[@&] }
   OrderName { ![ \t\n]+ }
   
   DialogSymbol { "#" }

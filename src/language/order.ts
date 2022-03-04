@@ -1,4 +1,6 @@
-import { Constraint } from "./constraint";
+import type { LineData } from "@/model/line";
+import type { Constraint } from "./constraint";
+import { LineChildPolicy } from "./types";
 
 export interface Param {
     constraint: Constraint;
@@ -20,53 +22,60 @@ export interface NamedParam {
     description?: string;
 }
 
-/**
- * false - 没有子节点
- * true - 自由挂载子节点
- * 
- */
-export type OrderChildDefinition
-    = boolean
-    | OrderDefinition
-    | OrderDefinition[]
-    ;
-
 export interface OrderDefinition {
     name: string;
     params: Param[];
     namedParams: Record<string, NamedParam>;
-    children: OrderChildDefinition;
+    subOrders: OrderDefinition[];
+    childPolicy: LineChildPolicy;
+    initChildren?: LineData[];
 }
 
 const OrderRegistry = new Map<string, OrderDefinition>();
 
 export class OrderManager {
 
-    static register(definition: OrderDefinition) {
-        if (Array.isArray(definition.children)) {
-
-        }
-        OrderRegistry.set(definition.name, definition);
+    static register(definition: OrderDefinition, namespace = "") {
+        OrderRegistry.set(namespace + definition.name, definition);
+        definition.subOrders.forEach((subOrder) => {
+            OrderManager.register(subOrder, namespace + definition.name + " ");
+        })
     }
 
     static get(name: string) {
         return OrderRegistry.get(name);
     }
 
+    /**
+     * 列出指令
+     * @returns 
+     */
     static list() {
-        return [ ...OrderRegistry.keys() ];
+        return [ ...OrderRegistry.keys() ]
+            .filter((e) => {
+                const path = e.split(" ");
+                if (path.length > 1) return false;
+                return true;
+            });
     }
 }
 
 export function defineOrder(
-    name: string,
-    { params = [], namedParams = {}, children = false }: Partial<OrderDefinition> = {}
+    name: string, {
+        params = [],
+        namedParams = {},
+        subOrders = [],
+        childPolicy = LineChildPolicy.NoChild,
+        initChildren,
+    }: Partial<OrderDefinition> = {}
 ): OrderDefinition {
     return {
         name,
         params,
         namedParams,
-        children,
+        subOrders,
+        childPolicy,
+        initChildren,
     }
 }
 

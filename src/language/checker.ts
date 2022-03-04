@@ -8,17 +8,18 @@ import { checkConstraint, ConstraintType } from "./constraint";
 import { useLabel } from "./decoration";
 import { Diagnostic } from "@codemirror/lint";
 
-interface TypeCheckResult {
+export type CheckResult = Partial<{
     decorations: DecorationSet;
     diagnostics: Diagnostic[];
-}
+}>;
 
 /**
+ * 负责 dialog order subOrder 的检查
  * @todo 需要性能优化时，可以改写为闭包形式
  * @param view 
  * @returns 
  */
-export function checkType(view: EditorView): TypeCheckResult {
+export function checkOrder(view: EditorView, namespace?: string): CheckResult {
 
     const decorations = [] as Range<Decoration>[];
     const diagnostics = [] as Diagnostic[];
@@ -60,9 +61,10 @@ export function checkType(view: EditorView): TypeCheckResult {
                 attachError(`未填写指令名`, method);
                 return;
             };
+            const namespacePrefix = namespace ? namespace + " " : "";
 
             const orderName = getValue(name);
-            const definition = OrderManager.get(orderName);
+            const definition = OrderManager.get(namespacePrefix + orderName);
 
             if (!definition) {
                 attachError(`指令 [${ orderName }] 未被定义`, method);
@@ -78,9 +80,6 @@ export function checkType(view: EditorView): TypeCheckResult {
                 checkOrder(view, dialog);
             }
 
-            break;
-        }
-        case "Comment": {
             break;
         }
         default: {
@@ -219,4 +218,13 @@ export function checkType(view: EditorView): TypeCheckResult {
             }
         })
     }
+}
+
+/**
+ * @todo js检查
+ * @param view 
+ * @returns 
+ */
+export function checkScript(view: EditorView): CheckResult {
+    return {}
 }

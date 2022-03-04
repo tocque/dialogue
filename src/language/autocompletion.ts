@@ -7,6 +7,12 @@ import { syntaxTree } from "@codemirror/language"
 import { SyntaxNode } from "@lezer/common";
 import { OrderManager } from "./order";
 
+/**
+ * 创建指令补全
+ * @todo 对于必须参数，补全其初始值
+ * @param orderName 
+ * @returns 
+ */
 function createOrderCompletion(orderName: string): Completion {
     return {
         label: orderName, type: "function", apply: orderName + " "
@@ -16,6 +22,7 @@ function createOrderCompletion(orderName: string): Completion {
 /**
  * 自动补全实现，包括
  *  - 指令名补全
+ *  - @todo 子指令分析
  *  - @todo 具名参数补全
  *  - @todo 枚举补全
  * @param context 

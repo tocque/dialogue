@@ -7,7 +7,7 @@ export enum LineContentType {
     Order,
     Script,
     Comment,
-    Template,
+    SubOrder,
 }
 
 /**

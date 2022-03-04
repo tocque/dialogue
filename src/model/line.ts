@@ -9,10 +9,10 @@ import { Dialog } from "@/language";
 import { LineChildPolicy, LineContentType } from "@/language/types";
 import { getContentType } from "@/language/utils";
 import { checkType } from "@/language/checker";
-import { standardKeymap } from "@codemirror/commands";
 import { bracketMatching } from "@codemirror/matchbrackets";
 import { autocompletion } from "@codemirror/autocomplete";
 import { Diagnostic, linter } from "@codemirror/lint";
+import { myKeymap } from "./command";
 
 const idMap = new Map<number, Line>();
 let id = 0;
@@ -61,39 +61,10 @@ export class Line {
                     closeBrackets(),
                     autocompletion({}),
                     this.languageConf.of([]),
-                    linter(() => {
-                        if (this.contentType === LineContentType.Script) {
-                            return [];
-                        } else {
-                            return this.diagnostics;
-                        }
-                    }),
-                    keymap.of([
-                        ...standardKeymap,
-                        {
-                            key: "Shift-Enter",
-                            preventDefault: true,
-                            run: () => {
-                                if (!this.model) return false;
-                                this.model.appendNewLine(this.id);
-                                return true;
-                            }
-                        },
-                        {
-                            key: "Backspace",
-                            run: () => {
-                                if (!this.model) return false;
-                                if (!this.isEmpty()) return false;
-                                if (!this.isDeletable()) return false;
-                                this.model.deleteLine(this.id);
-                                return true;
-                            }
-                        }
-                    ]),
+                    linter(() =>  this.diagnostics),
+                    myKeymap(this),
                     ViewPlugin.define(() => ({}), {
-                        decorations: () => {
-                            return this.decorations;
-                        }
+                        decorations: () => this.decorations,
                     })
                 ],
             }),
@@ -141,7 +112,7 @@ export class Line {
         return this.view.state.doc.lineAt(0).text;
     }
 
-    private isEmpty() {
+    isEmpty() {
         if (this.getFirstLine().length > 0) return false;
         return this.view.state.doc.lines === 1;
     }
@@ -207,6 +178,8 @@ export class Line {
             const { decorations, diagnostics } = checkType(this.view);
             this.decorations = decorations;
             this.diagnostics = diagnostics;
+        } else {
+            this.diagnostics = [];
         }
     }
 
@@ -217,6 +190,7 @@ export class Line {
             case LineContentType.Dialog:
             case LineContentType.Order:
             case LineContentType.Comment:
+            case LineContentType.Template:
                 this.view.dispatch({
                     effects: this.languageConf.reconfigure(Dialog())
                 });

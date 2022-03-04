@@ -45,37 +45,38 @@ export function checkType(view: EditorView): TypeCheckResult {
 
     // line.name: Order | Dialog | Comment
     switch (line.name) {
-        case "Order": {
+        case "Order": (() => {
             // OrderHeader = OrderMethod DefaultParam NamedParam*
             const header = line.firstChild;
             if (!header || header.name !== "OrderHeader") throw new Error("");
 
             // OrderMethod = OrderSymbol OrderName
             const method = header.firstChild;
-            /** @todo 错误处理 */
-            if (!method || method.name !== "OrderMethod") break;
+            if (!method || method.name !== "OrderMethod") throw new Error("");
 
             const name = method.lastChild;
             /** @todo 错误处理 */
-            if (!name || name.name !== "OrderName") break;
+            if (!name || name.name !== "OrderName") {
+                attachError(`未填写指令名`, method);
+                return;
+            };
 
             const orderName = getValue(name);
             const definition = OrderManager.get(orderName);
 
-            /** @todo 错误处理 */
             if (!definition) {
-                attachError(`指令${ orderName }未被定义`, method);
-                break;
+                attachError(`指令 [${ orderName }] 未被定义`, method);
+                return;
             }
 
             checkOrder(view, definition);
-            break;
-        }
+            return;
+        })();
         case "Dialog": {
             const header = line.firstChild;
-            if (!header || header.name !== "DialogHeader") throw new Error("");
-
-            checkOrder(view, dialog);
+            if (header && header.name === "DialogHeader") {
+                checkOrder(view, dialog);
+            }
 
             break;
         }

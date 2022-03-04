@@ -61,7 +61,7 @@ export class Line {
                     closeBrackets(),
                     autocompletion({}),
                     this.languageConf.of([]),
-                    linter(() =>  this.diagnostics),
+                    linter(() => this.diagnostics),
                     myKeymap(this),
                     ViewPlugin.define(() => ({}), {
                         decorations: () => this.decorations,
